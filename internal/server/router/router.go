@@ -13,7 +13,7 @@ type OCRHandler interface {
 
 // New wires up handlers to the Gin engine.
 func New(apiKey string, ocrHandler OCRHandler) *gin.Engine {
-	r := gin.New()
+	r := gin.Default()
 
 	// Health check endpoint (no middleware)
 	r.GET("/healthz", func(c *gin.Context) {

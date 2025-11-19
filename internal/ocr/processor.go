@@ -71,6 +71,7 @@ func (p *Processor) ExtractText(ctx context.Context, pdfPath string, opts Option
 		"--quiet",
 		"--force-ocr",
 		"--rotate-pages-threshold", "0.0",
+		"--jobs", "20",
 	}
 	if opts.Language != "" {
 		args = append(args, "--language", opts.Language)

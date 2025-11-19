@@ -2,4 +2,4 @@ include .env
 
 
 dev:
-	sh -c 'set -a; . ./.env; set +a; gow run cmd/server/main.go'
+	sh -c 'set -a; . ./.env; set +a; gow run cmd/server/ocr.go'

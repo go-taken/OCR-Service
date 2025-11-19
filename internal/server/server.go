@@ -2,14 +2,14 @@ package server
 
 import (
 	"log"
+	"net/http"
 	"os"
+	"time"
 
 	"app/internal/ocr"
 	"app/internal/server/handler"
 	"app/internal/server/router"
 	"app/internal/server/service"
-
-	"github.com/gin-gonic/gin"
 )
 
 // Run starts the HTTP server.
@@ -25,14 +25,6 @@ func Run() error {
 		port = "8080"
 	}
 
-	// Set Gin mode based on environment
-	mode := os.Getenv("MODE")
-	if mode == "prod" {
-		gin.SetMode(gin.ReleaseMode)
-	} else {
-		gin.SetMode(gin.DebugMode)
-	}
-
 	// Build dependency chain
 	processor := ocr.NewProcessor()
 	ocrService := service.NewOCRService(processor)
@@ -41,8 +33,17 @@ func Run() error {
 	// Setup router with all routes and middleware
 	r := router.New(apiKey, ocrHandler)
 
-	// Start server
+	// Configure server with 10 minute timeout
 	addr := ":" + port
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      r,
+		ReadTimeout:  10 * time.Minute,
+		WriteTimeout: 10 * time.Minute,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Start server
 	log.Printf("listening on %s", addr)
-	return r.Run(addr)
+	return srv.ListenAndServe()
 }
