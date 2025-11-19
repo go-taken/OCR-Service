@@ -1,0 +1,90 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+API_DOCUMENTATION.md
+*.md
+docs/
+documentation/
+
+# Environment files
+.env
+.env.*
+!env.sample
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+*_test.go
+testdata/
+test/
+tests/
+
+# Example/sample files
+pdf-example*.pdf
+examples/
+samples/
+
+# Build artifacts
+bin/
+build/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+*.test
+*.out
+
+# Dependency directories
+vendor/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+logs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Docker files (already in image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Coverage reports
+*.cover
+*.coverprofile
+coverage.txt
+coverage.html
+
+# IDE specific
+*.iml
+.vscode/
+.idea/
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Misc
+*.bak
+*.backup
+.cache/

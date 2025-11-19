@@ -1,0 +1,118 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+cmd/server/server
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+*.cover
+*.coverprofile
+coverage.txt
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.iml
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Log files
+*.log
+logs/
+log/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*~
+
+# Build artifacts
+bin/
+build/
+dist/
+
+# Example/sample PDFs (development only)
+pdf-example*.pdf
+*.pdf
+!docs/*.pdf
+
+# Cache directories
+.cache/
+*.cache
+
+# Debug files
+debug
+__debug_bin
+
+# Air (live reload) temporary files
+tmp/
+main
+
+# Compiled Object files
+*.o
+*.a
+
+# Profiling data
+*.prof
+*.pprof
+cpu.prof
+mem.prof
+block.prof
+
+# Private keys and certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Documentation build artifacts
+docs/_build/
+site/
