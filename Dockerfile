@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-eng \
     tesseract-ocr-chi-sim \
     tesseract-ocr-ind \
+    poppler-utils \
     wget \
     && rm -rf /var/lib/apt/lists/*
 

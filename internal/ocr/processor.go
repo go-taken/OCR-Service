@@ -1,6 +1,7 @@
 package ocr
 
 import (
+	"app/pkg"
 	"bytes"
 	"context"
 	"errors"
@@ -11,6 +12,14 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+)
+
+const (
+	// DefaultTextThreshold is the minimum character count to consider a page has text
+	DefaultTextThreshold = 50
 )
 
 // PageContent represents OCR text for a single page.
@@ -21,7 +30,10 @@ type PageContent struct {
 
 // Options controls the OCR command invocation.
 type Options struct {
-	Language string
+	Language        string
+	TextThreshold   int  // Minimum characters to consider page has text (default: 50)
+	ForceOCR        bool // Force OCR even if text exists
+	RemoveWatermark bool // Remove watermark before processing (default: true)
 }
 
 // Processor wraps OCRmyPDF CLI invocation.
@@ -38,11 +50,184 @@ func NewProcessor() *Processor {
 	}
 }
 
-// ExtractText runs OCRmyPDF against pdfPath and returns cleaned page contents.
+// ExtractText runs smart OCR: splits PDF, removes watermarks, extracts existing text, and OCRs only pages without text.
 func (p *Processor) ExtractText(ctx context.Context, pdfPath string, opts Options) ([]PageContent, error) {
 	if pdfPath == "" {
 		return nil, errors.New("pdf path is required")
 	}
+
+	// Set defaults
+	if opts.TextThreshold <= 0 {
+		opts.TextThreshold = 50
+	}
+
+	// Split PDF into individual pages
+	pageFiles, tempDir, err := p.splitPDFPages(pdfPath)
+	if err != nil {
+		return nil, fmt.Errorf("split pdf: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var results []PageContent
+
+	for i, pageFile := range pageFiles {
+		pageNum := i + 1
+
+		// Remove watermark if enabled (default: true when not explicitly set)
+		if opts.RemoveWatermark || (!opts.ForceOCR && opts.TextThreshold > 0) {
+			if err := p.removeWatermark(pageFile); err != nil {
+				// Log but continue - watermark removal is best effort
+				_ = err
+			}
+		}
+
+		var text string
+
+		// Try to extract existing text first (unless ForceOCR is set)
+		if !opts.ForceOCR {
+			extractedText, err := p.extractTextFromPage(pageFile)
+			if err == nil && p.hasSignificantText(extractedText, opts.TextThreshold) {
+				text = strings.TrimSpace(extractedText)
+			}
+		}
+
+		// If no significant text found, run OCR on this page
+		if text == "" {
+			ocrText, err := p.ocrSinglePage(ctx, pageFile, opts)
+			if err != nil {
+				return nil, fmt.Errorf("ocr page %d: %w", pageNum, err)
+			}
+			text = ocrText
+		}
+
+		// Only add pages with content
+		if text != "" {
+			results = append(results, PageContent{
+				Page:    pageNum,
+				Content: pkg.RemoveExtraSpaces(text),
+			})
+		}
+	}
+
+	return results, nil
+}
+
+// splitPDFPages splits a PDF into individual page files.
+func (p *Processor) splitPDFPages(pdfPath string) ([]string, string, error) {
+	// Create temp directory for split pages
+	tempDir, err := os.MkdirTemp("", "ocr-pages-*")
+	if err != nil {
+		return nil, "", fmt.Errorf("create temp dir: %w", err)
+	}
+
+	// Get page count
+	pageCount, err := api.PageCountFile(pdfPath)
+	if err != nil {
+		os.RemoveAll(tempDir)
+		return nil, "", fmt.Errorf("get page count: %w", err)
+	}
+
+	conf := model.NewDefaultConfiguration()
+	var pageFiles []string
+
+	// Split each page
+	for i := 1; i <= pageCount; i++ {
+		outputPath := filepath.Join(tempDir, fmt.Sprintf("page_%04d.pdf", i))
+
+		// Extract single page
+		err := api.ExtractPagesFile(pdfPath, tempDir, []string{fmt.Sprintf("%d", i)}, conf)
+		if err != nil {
+			os.RemoveAll(tempDir)
+			return nil, "", fmt.Errorf("extract page %d: %w", i, err)
+		}
+
+		// pdfcpu creates files with pattern: originalname_page_N.pdf
+		// We need to find and rename it
+		baseName := strings.TrimSuffix(filepath.Base(pdfPath), ".pdf")
+		expectedName := filepath.Join(tempDir, fmt.Sprintf("%s_page_%d.pdf", baseName, i))
+
+		if _, err := os.Stat(expectedName); err == nil {
+			if err := os.Rename(expectedName, outputPath); err != nil {
+				os.RemoveAll(tempDir)
+				return nil, "", fmt.Errorf("rename page %d: %w", i, err)
+			}
+		} else {
+			// Try alternate naming pattern
+			altName := filepath.Join(tempDir, fmt.Sprintf("%s_%d.pdf", baseName, i))
+			if _, err := os.Stat(altName); err == nil {
+				if err := os.Rename(altName, outputPath); err != nil {
+					os.RemoveAll(tempDir)
+					return nil, "", fmt.Errorf("rename page %d: %w", i, err)
+				}
+			} else {
+				os.RemoveAll(tempDir)
+				return nil, "", fmt.Errorf("find extracted page %d file", i)
+			}
+		}
+
+		pageFiles = append(pageFiles, outputPath)
+	}
+
+	return pageFiles, tempDir, nil
+}
+
+// removeWatermark attempts to remove watermarks from a PDF page.
+func (p *Processor) removeWatermark(pagePath string) error {
+	conf := model.NewDefaultConfiguration()
+
+	// Create temp file for output
+	tempFile, err := os.CreateTemp("", "ocr-nowm-*.pdf")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tempPath := tempFile.Name()
+	tempFile.Close()
+
+	// Try to remove watermarks
+	if err := api.RemoveWatermarksFile(pagePath, tempPath, nil, conf); err != nil {
+		os.Remove(tempPath)
+		// Watermark removal failed, but this is not critical
+		return err
+	}
+
+	// Replace original with watermark-removed version
+	if err := os.Rename(tempPath, pagePath); err != nil {
+		os.Remove(tempPath)
+		return fmt.Errorf("replace original: %w", err)
+	}
+
+	return nil
+}
+
+// extractTextFromPage extracts text content from a PDF page using pdftotext (poppler-utils).
+func (p *Processor) extractTextFromPage(pagePath string) (string, error) {
+	// Use pdftotext from poppler-utils for reliable text extraction
+	cmd := exec.Command("pdftotext", "-layout", pagePath, "-")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// pdftotext not available or failed, return empty string
+		return "", nil
+	}
+
+	return normalizeNewlines(stdout.String()), nil
+}
+
+// hasSignificantText checks if the text has enough content to be considered valid.
+func (p *Processor) hasSignificantText(text string, threshold int) bool {
+	// Remove whitespace for character count
+	cleaned := strings.ReplaceAll(text, " ", "")
+	cleaned = strings.ReplaceAll(cleaned, "\n", "")
+	cleaned = strings.ReplaceAll(cleaned, "\t", "")
+	cleaned = strings.ReplaceAll(cleaned, "\r", "")
+
+	return len(cleaned) >= threshold
+}
+
+// ocrSinglePage runs OCRmyPDF on a single page PDF.
+func (p *Processor) ocrSinglePage(ctx context.Context, pagePath string, opts Options) (string, error) {
 	binary := p.Binary
 	if binary == "" {
 		binary = "ocrmypdf"
@@ -52,32 +237,34 @@ func (p *Processor) ExtractText(ctx context.Context, pdfPath string, opts Option
 		timeout = 2 * time.Minute
 	}
 
+	// Create temp files
 	sidecarFile, err := os.CreateTemp("", "ocr-sidecar-*.txt")
 	if err != nil {
-		return nil, fmt.Errorf("create sidecar: %w", err)
+		return "", fmt.Errorf("create sidecar: %w", err)
 	}
 	defer os.Remove(sidecarFile.Name())
 	defer sidecarFile.Close()
 
 	outputPDF, err := os.CreateTemp("", "ocr-output-*.pdf")
 	if err != nil {
-		return nil, fmt.Errorf("create temp output: %w", err)
+		return "", fmt.Errorf("create temp output: %w", err)
 	}
 	defer os.Remove(outputPDF.Name())
 	defer outputPDF.Close()
 
+	// Build OCRmyPDF arguments
 	args := []string{
 		"--sidecar", sidecarFile.Name(),
 		"--quiet",
-		"--force-ocr",
 		"--rotate-pages-threshold", "0.0",
-		"--jobs", "20",
+		"--skip-text", // Skip if page already has text layer
 	}
 	if opts.Language != "" {
 		args = append(args, "--language", opts.Language)
 	}
-	args = append(args, pdfPath, outputPDF.Name())
+	args = append(args, pagePath, outputPDF.Name())
 
+	// Execute OCRmyPDF
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -86,14 +273,16 @@ func (p *Processor) ExtractText(ctx context.Context, pdfPath string, opts Option
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("ocrmypdf: %w - %s", err, stderr.String())
+		return "", fmt.Errorf("ocrmypdf: %w - %s", err, stderr.String())
 	}
 
-	pages, err := parseSidecar(sidecarFile.Name())
+	// Read sidecar output
+	data, err := os.ReadFile(sidecarFile.Name())
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("read sidecar: %w", err)
 	}
-	return pages, nil
+
+	return strings.TrimSpace(normalizeNewlines(string(data))), nil
 }
 
 func parseSidecar(path string) ([]PageContent, error) {
