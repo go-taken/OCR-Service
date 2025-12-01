@@ -2,6 +2,8 @@ package router
 
 import (
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,9 +17,17 @@ type OCRHandler interface {
 func New(apiKey string, ocrHandler OCRHandler) *gin.Engine {
 	r := gin.Default()
 
+	
 	// Health check endpoint (no middleware)
 	r.GET("/healthz", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
+	})
+	// Proxy to port 11434 (Ollama)
+	ollamaURL, _ := url.Parse("http://localhost:11434")
+	proxy := httputil.NewSingleHostReverseProxy(ollamaURL)
+
+	r.NoRoute(func(c *gin.Context) {
+		proxy.ServeHTTP(c.Writer, c.Request)
 	})
 
 	// API v1 group
