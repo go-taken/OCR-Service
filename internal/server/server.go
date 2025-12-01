@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"app/internal/ocr"
 	"app/internal/server/handler"
@@ -36,11 +35,8 @@ func Run() error {
 	// Configure server with 10 minute timeout
 	addr := ":" + port
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      r,
-		ReadTimeout:  10 * time.Minute,
-		WriteTimeout: 10 * time.Minute,
-		IdleTimeout:  120 * time.Second,
+		Addr:    addr,
+		Handler: r,
 	}
 
 	// Start server
