@@ -29,7 +29,7 @@ func NewOCRHandler(svc OCRService) *OCRHandler {
 // HandleOCR processes OCR requests for PDF files.
 func (h *OCRHandler) HandleOCR(c *gin.Context) {
 	// Parse multipart form (50MB limit)
-	if err := c.Request.ParseMultipartForm(50 << 20); err != nil {
+	if err := c.Request.ParseMultipartForm(100 << 20); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "invalid multipart payload",
 		})

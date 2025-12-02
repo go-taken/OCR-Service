@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"app/internal/ocr"
 	"app/internal/server/handler"
@@ -32,11 +33,14 @@ func Run() error {
 	// Setup router with all routes and middleware
 	r := router.New(apiKey, ocrHandler)
 
-	// Configure server with 10 minute timeout
+	// Configure server with generous timeouts for large PDF processing
 	addr := ":" + port
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: r,
+		Addr:         addr,
+		Handler:      r,
+		ReadTimeout:  120 * time.Minute, // Allow large file uploads
+		WriteTimeout: 120 * time.Minute, // Allow long OCR processing
+		IdleTimeout:  120 * time.Second,
 	}
 
 	// Start server

@@ -58,7 +58,7 @@ func (p *Processor) ExtractText(ctx context.Context, pdfPath string, opts Option
 
 	// Set defaults
 	if opts.TextThreshold <= 0 {
-		opts.TextThreshold = 50
+		opts.TextThreshold = 150
 	}
 
 	// Split PDF into individual pages
@@ -72,6 +72,7 @@ func (p *Processor) ExtractText(ctx context.Context, pdfPath string, opts Option
 
 	for i, pageFile := range pageFiles {
 		pageNum := i + 1
+		fmt.Println("pageFile", pageFile)
 
 		// Remove watermark if enabled (default: true when not explicitly set)
 		if opts.RemoveWatermark || (!opts.ForceOCR && opts.TextThreshold > 0) {
@@ -257,7 +258,7 @@ func (p *Processor) ocrSinglePage(ctx context.Context, pagePath string, opts Opt
 		"--sidecar", sidecarFile.Name(),
 		"--quiet",
 		"--rotate-pages-threshold", "0.0",
-		"--skip-text", // Skip if page already has text layer
+		"--force-ocr",
 	}
 	if opts.Language != "" {
 		args = append(args, "--language", opts.Language)
