@@ -257,6 +257,7 @@ func (p *Processor) ocrSinglePage(ctx context.Context, pagePath string, opts Opt
 	args := []string{
 		"--sidecar", sidecarFile.Name(),
 		"--quiet",
+		"--rotate-pages",
 		"--rotate-pages-threshold", "0.0",
 		"--force-ocr",
 	}
